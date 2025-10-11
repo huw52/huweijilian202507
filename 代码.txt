@@ -1,0 +1,60 @@
+import json
+import uuid
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
+
+import requests
+
+
+def down_data(url):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+    }
+    # 如果服务端返回的是字符串，用text
+    # 如果服务端返回的是二进制数据，图片，视频，MP3, content
+    # 加headers的目的，为了更加真实的模拟浏览器的请求
+    # 就是为了“骗过”服务端
+    res = requests.get(url, headers=headers).text
+    # 吧json字符串，变成字典
+    dic = json.loads(res)
+    for item in dic["data"]:
+        # 获取到视频地址
+        video_url = item.get("playUrl", "")
+        if video_url != "":
+            # 获取到视频的数据
+            video_data = requests.get(video_url, headers=headers)
+            # wb 写入二进制数据
+            # open("videos/1.mp4", "wb") ---->f
+            # with  f 执行完毕之后，要从内存释放！
+            # uuid.uuid4() 产生全球唯一的一个文件名
+            with open(f"videos/{uuid.uuid4()}.mp4", "wb") as f:
+                # f.write(video_data.content)
+                # f.close()
+                for chunk in video_data.iter_content(
+                        chunk_size=1024 * 1024):
+                    if chunk:
+                        f.write(chunk)
+
+
+if __name__ == '__main__':
+    page_size = int(input("请输入你要爬取页数："))
+
+    starttime = datetime.now()
+
+    # 获取到每一页的接口地址
+    urls = []
+    # page_size=3 range(3) [0,1,2]
+    for i in range(page_size):
+        url = f"https://www.ku6.com/video/feed?" \
+              f"pageNo={i}&pageSize=40&subjectId=70"
+        urls.append(url)
+    #
+    # for url in urls:
+    #     down_data(url)
+
+    with ThreadPoolExecutor(max_workers=2) as exe:
+        for url in urls:
+            exe.submit(down_data, url)
+
+    endtime = datetime.now()
+    print(f"总共花了{(endtime - starttime).seconds}秒")
